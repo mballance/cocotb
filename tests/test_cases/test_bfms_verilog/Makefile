@@ -1,5 +1,5 @@
 ###############################################################################
-# Copyright (c) 2014 Potential Ventures Ltd
+# Copyright (c) 2015 Potential Ventures Ltd
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -10,7 +10,6 @@
 #       notice, this list of conditions and the following disclaimer in the
 #       documentation and/or other materials provided with the distribution.
 #     * Neither the name of Potential Ventures Ltd,
-#       SolarFlare Communications Inc nor the
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
 #
@@ -26,25 +25,31 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ###############################################################################
 
-include $(COCOTB_SHARE_DIR)/makefiles/Makefile.inc
+TOPLEVEL_LANG ?= verilog
+COCOTB_BFM_MODULES += rv_bfms
 
-# Attempt to locate the Modelsim installation location
-# if the environment variable isn't set
-ifeq (,$(MODELSIM_BIN_DIR))
-  MODELSIM_BIN_DIR := $(dir $(shell which vsim))
+ifneq ($(TOPLEVEL_LANG),verilog)
+
+all:
+	@echo "Skipping test due to TOPLEVEL_LANG=$(TOPLEVEL_LANG) not being verilog"
+clean::
+
+else
+
+ifeq ($(OS),Msys)
+WPWD=$(shell sh -c 'pwd -W')
+else
+WPWD=$(shell pwd)
 endif
 
-INCLUDES    += -I$(MODELSIM_BIN_DIR)/../include
-GXX_ARGS    += -DFLI_CHECKING -DUSE_CACHE
-LIBS        := $(EXTRA_LIBS) -lgpilog -lgpi -lstdc++
-LD_PATH     := -L$(LIB_DIR) $(EXTRA_LIBDIRS)
-LIB_NAME    := libfli
+COCOTB?=$(WPWD)/../../..
 
-SRCS        := FliImpl.cpp FliCbHdl.cpp FliObjHdl.cpp
+VERILOG_SOURCES = $(COCOTB)/tests/designs/rv_bfm/rv_bfm_top.sv
+TOPLEVEL = rv_bfm_top
 
-all: $(LIB_DIR)/$(LIB_NAME).$(LIB_EXT)
+MODULE = bfm_test
 
-clean:
-	-@rm -rf $(LIB_DIR)/$(LIB_NAME)
+include $(COCOTB)/makefiles/Makefile.inc
+include $(COCOTB)/makefiles/Makefile.sim
 
-include $(COCOTB_SHARE_DIR)/makefiles/Makefile.rules
+endif

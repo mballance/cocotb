@@ -41,6 +41,9 @@ static int sim_ending = 0;
 
 #include "simulatormodule.h"
 #include <cocotb_utils.h>
+#include "cocotb_bfm_api.h"
+
+static PyObject *bfm_call_method = 0;
 
 typedef int (*gpi_function_t)(const void *);
 
@@ -956,10 +959,151 @@ static void add_module_constants(PyObject* simulator)
     rc |= PyModule_AddIntConstant(simulator, "OBJECTS",       GPI_OBJECTS);
     rc |= PyModule_AddIntConstant(simulator, "DRIVERS",       GPI_DRIVERS);
     rc |= PyModule_AddIntConstant(simulator, "LOADS",         GPI_LOADS);
+    rc |= PyModule_AddIntConstant(simulator, "BFM_UI_PARAM",  GpiBfmParamType_Ui);
+    rc |= PyModule_AddIntConstant(simulator, "BFM_SI_PARAM",  GpiBfmParamType_Si);
+    rc |= PyModule_AddIntConstant(simulator, "BFM_STR_PARAM", GpiBfmParamType_Str);
 
     if (rc != 0)
         fprintf(stderr, "Failed to add module constants!\n");
 }
+
+/**
+ * bfm_get_count()
+ *
+ * Returns the number of BFMs registered with CoCoTB
+ */
+static PyObject *bfm_get_count(PyObject *self, PyObject *args) {
+	return PyLong_FromUnsignedLong(cocotb_bfm_num_registered());
+}
+
+/**
+ * bfm_get_info()
+ *
+ * Returns information about a specific BFM
+ */
+static PyObject *bfm_get_info(PyObject *self, PyObject *args) {
+	int id = 0; // TODO:
+
+    if (!PyArg_ParseTuple(args, "i", &id)) {
+        return NULL;
+    }
+
+	return PyTuple_Pack(3,
+			Py_BuildValue("s", cocotb_bfm_typename(id)),
+			Py_BuildValue("s", cocotb_bfm_instname(id)),
+			Py_BuildValue("s", cocotb_bfm_clsname(id))
+			);
+}
+
+/**
+ * bfm_send_msg()
+ *
+ * Sends a message to a specific BFM
+ * - bfm_id
+ * - msg_id
+ * - param_l
+ * - type_l
+ */
+static PyObject *bfm_send_msg(PyObject *self, PyObject *args) {
+	int bfm_id, msg_id;
+	PyObject *param_l, *type_l;
+	cocotb_bfm_msg_param_t *paramv = 0;
+	int paramc = 0;
+	uint32_t i;
+
+	(void)param_l;
+	(void)type_l;
+
+	if (!PyArg_ParseTuple(args, "iiOO", &bfm_id, &msg_id, &param_l, &type_l)) {
+		return 0;
+	}
+
+	paramc = PyList_Size(param_l);
+	paramv = (cocotb_bfm_msg_param_t *)malloc(
+			sizeof(cocotb_bfm_msg_param_t) * paramc);
+
+	for (i=0; i<paramc; i++) {
+		PyObject *t = PyList_GetItem(type_l, i);
+		PyObject *v = PyList_GetItem(param_l, i);
+
+		paramv[i].ptype = (cocotb_bfm_param_type_e)PyLong_AsLong(t);
+
+		switch (paramv[i].ptype) {
+		case GpiBfmParamType_Ui: {
+			paramv[i].pval.ui64 = PyLong_AsUnsignedLongLong(v);
+		} break;
+		case GpiBfmParamType_Si: {
+			paramv[i].pval.i64 = PyLong_AsLongLong(v);
+		} break;
+		case GpiBfmParamType_Str: {
+			fprintf(stdout, "TODO: STR param\n"); break;
+		} break;
+		default: fprintf(stdout, "Unknown param\n");
+		}
+	}
+
+	cocotb_bfm_send_msg(bfm_id, msg_id, paramc, paramv);
+	free(paramv);
+
+	return Py_BuildValue("");
+}
+
+/**
+ * bfm_recv_msg()
+ *
+ * Receives a message from a BFM to pass on to Python
+ */
+static void bfm_recv_msg(
+		uint32_t 				bfm_id,
+		uint32_t				msg_id,
+		uint32_t				paramc,
+		cocotb_bfm_msg_param_t	*paramv) {
+	uint32_t i;
+    PyGILState_STATE gstate;
+    PyObject *param_l;
+
+    gstate = TAKE_GIL();
+
+    param_l = PyList_New(paramc);
+    for (i=0; i<paramc; i++) {
+    	switch (paramv[i].ptype) {
+    	case GpiBfmParamType_Ui: {
+    		PyList_SetItem(param_l, i, PyLong_FromUnsignedLongLong(paramv[i].pval.ui64));
+    	} break;
+    	case GpiBfmParamType_Si: {
+    		PyList_SetItem(param_l, i, PyLong_FromLongLong(paramv[i].pval.i64));
+    	} break;
+    	case GpiBfmParamType_Str: {
+    		PyList_SetItem(param_l, i, PyUnicode_FromString(paramv[i].pval.str));
+    	}
+    	}
+    }
+
+	PyObject_CallFunction(bfm_call_method, "iiO", bfm_id, msg_id, param_l);
+
+    DROP_GIL(gstate);
+
+}
+
+static PyObject *bfm_set_call_method(PyObject *self, PyObject *args) {
+	PyObject *temp;
+
+	if (PyArg_ParseTuple(args, "O:callback", &temp)) {
+		 if (!PyCallable_Check(temp)) {
+			 PyErr_SetString(PyExc_TypeError, "parameter must be callable");
+			 	 return 0;
+		 }
+		 Py_INCREF(temp);
+		 Py_XDECREF(bfm_call_method);
+		 bfm_call_method = temp;
+
+	     return Py_BuildValue("");
+	 } else {
+		 return 0;
+	 }
+}
+
+
 
 #if PY_MAJOR_VERSION >= 3
 #include "simulatormodule_python3.c"

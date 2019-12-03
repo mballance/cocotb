@@ -33,12 +33,24 @@ COCOTB_SHARE_MAKEFILES_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 COCOTB_SHARE_DIR := $(abspath $(COCOTB_SHARE_MAKEFILES_DIR)/..)
 export COCOTB_SHARE_DIR
 
-all-libs: cocotb-libs cocotb-vpi-libs cocotb-vhpi-libs cocotb-fli-libs
+all-libs: cocotb-libs cocotb-vpi-libs cocotb-vhpi-libs 
+
+CMD_BIN := vsim
+
+# Check if we have Questa commands before building FLI
+ifdef MODELSIM_BIN_DIR
+    CMD := $(shell :; command -v $(MODELSIM_BIN_DIR)/$(CMD_BIN)
+2>/dev/null)
+else
+    # auto-detect bin dir from system path
+    CMD := $(shell :; command -v $(CMD_BIN) 2>/dev/null)
+endif
+
+ifneq (,$(CMD))
+all-libs : cocotb-fli-libs
+endif
 
 vpi-libs : cocotb-libs cocotb-vpi-libs
-
-#SIM_BUILD ?= sim_build
-#export SIM_BUILD
 
 # Default to Icarus if no simulator is defined
 SIM ?= icarus

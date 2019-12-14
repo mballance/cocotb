@@ -982,17 +982,16 @@ static PyObject *bfm_get_count(PyObject *self, PyObject *args) {
  * Returns information about a specific BFM
  */
 static PyObject *bfm_get_info(PyObject *self, PyObject *args) {
-	int id = 0; // TODO:
+    int id;
 
     if (!PyArg_ParseTuple(args, "i", &id)) {
         return NULL;
     }
 
-	return PyTuple_Pack(3,
-			Py_BuildValue("s", cocotb_bfm_typename(id)),
-			Py_BuildValue("s", cocotb_bfm_instname(id)),
-			Py_BuildValue("s", cocotb_bfm_clsname(id))
-			);
+    return Py_BuildValue("ss",
+        cocotb_bfm_instname(id),
+        cocotb_bfm_clsname(id)
+    );
 }
 
 /**
@@ -1015,7 +1014,7 @@ static PyObject *bfm_send_msg(PyObject *self, PyObject *args) {
 	(void)type_l;
 
 	if (!PyArg_ParseTuple(args, "iiOO", &bfm_id, &msg_id, &param_l, &type_l)) {
-		return 0;
+		return NULL;
 	}
 
 	paramc = PyList_Size(param_l);

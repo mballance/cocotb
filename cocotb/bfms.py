@@ -1,31 +1,7 @@
 ###############################################################################
-# Copyright (c) 2013 Potential Ventures Ltd
-# Copyright (c) 2013 SolarFlare Communications Inc
-# Copyright (c) 2019 Matthew Ballance
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#     * Redistributions of source code must retain the above copyright
-#       notice, this list of conditions and the following disclaimer.
-#     * Redistributions in binary form must reproduce the above copyright
-#       notice, this list of conditions and the following disclaimer in the
-#       documentation and/or other materials provided with the distribution.
-#     * Neither the name of Potential Ventures Ltd,
-#       SolarFlare Communications Inc nor the
-#       names of its contributors may be used to endorse or promote products
-#       derived from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL POTENTIAL VENTURES LTD BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# Copyright cocotb contributors
+# Licensed under the Revised BSD License, see LICENSE for details.
+# SPDX-License-Identifier: BSD-3-Clause
 ###############################################################################
 
 import os
@@ -46,12 +22,10 @@ def register_bfm_type(T, hdl):
     export_info_l = []
     
 def register_bfm_import_info(info):
-    global import_info_l
     info.id = len(import_info_l)
     import_info_l.append(info)
     
 def register_bfm_export_info(info):
-    global export_info_l
     info.id = len(export_info_l)
     export_info_l.append(info)
     
@@ -112,7 +86,6 @@ class BfmMethodInfo():
                 # When we're not running in simulation, don't 
                 # worry about being able to access constants from simulation
                 self.type_info.append(None)
-                pass
 
 
 class BfmTypeInfo():
@@ -167,7 +140,7 @@ class BfmMgr():
    
     @staticmethod
     def inst():
-        if BfmMgr.m_inst == None:
+        if BfmMgr.m_inst is None:
             BfmMgr.m_inst = BfmMgr()
             
         return BfmMgr.m_inst
@@ -180,11 +153,10 @@ class BfmMgr():
         n_bfms = simulator.bfm_get_count()
         for i in range(n_bfms):
             info = simulator.bfm_get_info(i)
-            typename = info[0]
-            instname = info[1]
-            clsname = info[2]
+            instname = info[0]
+            clsname = info[1]
             if clsname.find('.') == -1:
-                raise Exception("Incorrectly-formatted BFM class name \"" + clsname + "\"")
+                raise Exception("Incorrectly-formatted BFM class name {!r}".format(clsname))
             pkgname = clsname[:clsname.rfind('.')]
             clsleaf = clsname[clsname.rfind('.')+1:]
           
@@ -232,5 +204,3 @@ class BfmMgr():
             raise Exception("BFM object does not contain 'bfm_info' field")
  
         bfm.bfm_info.call_method(method_id, params)
-
-    

@@ -1,7 +1,7 @@
 ###############
 Task-Based BFMs
 ###############
-
+.. versionadded:: 1.3
 Overview
 ========
 
@@ -11,13 +11,13 @@ Python, Verilog, and SystemVerilog (VHDL is TBD).
 BFM Implementation (Python)
 ===========================
 
-The Python aspect of a BFM is captured as a Python class with the @cocotb.bfm 
+The Python aspect of a BFM is captured as a Python class with the :class:`cocotb.bfm`
 decorator. The Python class provides both the user-facing and implementation
 API. In addition to identifying the class as a BFM class, the @cocotb.bfm
 decorator associates HDL template files with the BFM class.
 
-
 .. code-block:: python3
+
         @cocotb.bfm(hdl={
             cocotb.bfm_vlog : cocotb.bfm_hdl_path(__file__, "hdl/rv_data_out_bfm.v"),
             cocotb.bfm_sv   : cocotb.bfm_hdl_path(__file__, "hdl/rv_data_out_bfm.v")
@@ -52,9 +52,9 @@ decorator associates HDL template files with the BFM class.
                 self.ack_ev.set()
 
 Python methods that will result in task calls in the HDL are 
-decorated with the @cocotb.bfm_import decorator, while 
-Python methods that will be called from the HDL are decoarated
-with the @cocotb.bfm_export decorator. 
+decorated with the :class:`cocotb.bfm_import` decorator, while 
+Python methods that will be called from the HDL are decorated
+with the :class:`cocotb.bfm_export` decorator. 
 
 The types of method parameters for import and export methods
 are specified via the decorator. In the example above, the
@@ -76,6 +76,7 @@ implementations for the ``import`` tasks. Implementations of the
 the HDL code. 
 
 .. code-block:: verilog
+
       module rv_data_out_bfm #(
             parameter DATA_WIDTH = 8
             ) (
@@ -135,12 +136,13 @@ starts.
 
 Using BFMs from Python
 ======================
-Available BFM instances are registered with the ``cocotb.BfmMgr`` class. 
+Available BFM instances are registered with the :class:`cocotb.BfmMgr` class. 
 Static methods provide access to the list of available BFMs, and the
-``find_bfm`` method accepts a regular expression to find a BFM based
+:meth:`~cocotb.BfmMgr.find_bfm` method accepts a regular expression to find a BFM based
 on its HDL instance path.
 
 .. code-block:: python3
+
     @cocotb.coroutine
     def run_c(self):
         out_bfm = BfmMgr.find_bfm(".*u_bfm")
@@ -148,16 +150,17 @@ on its HDL instance path.
         for i in range(1,101):
             yield out_bfm.write_c(i)
 
-The code snippet above shows typical use within a test. The ``find_bfm``
+The code snippet above shows typical use within a test. The :meth:`~cocotb.BfmMgr.find_bfm`
 method is used to find a BFM with the expected instance path. Then,
 methods on the BFM object are called to send data via the BFM.
 
 Cocotb Makefile Interface
 =========================
 If you are using the Cocotb Makefiles, simply append the BFM packages
-used by your testbench to the COCOTB_BFM_MODULES variable
+used by your testbench to the :make:var:`COCOTB_BFM_MODULES` variable
 
 .. code-block:: make
+
     COCOTB_BFM_MODULES += rv_bfms
     
 The Makefiles will automatically generate and compile the interface
@@ -170,16 +173,17 @@ HDL to call Python methods is auto-generated. This ensures that the
 HDL interface is always up-to-date with the Python definition of the
 BFM API.
 
-The ``cocotb-bfmgen`` script generates the appropriate BFM interface
+The :command:`cocotb-bfmgen` script generates the appropriate BFM interface
 files based on the BFMs required for a given testbench.
 
 The ``cocotb-bfmgen`` script accepts the following options:
+
 - -m <module> -- Specifies a Python module to load. Typically, this will
-be a BFM package.
-- -language <target> -- Specifies the target testbench language. ``vlog`` and ``sv`` 
-are currently accepted.
+  be a BFM package.
+- -l,--language <target> -- Specifies the target testbench language. ``vlog`` and ``sv`` 
+  are currently accepted.
 - -o <file> -- Specifies the output file. By default, the name will 
-be cocotb_bfms.v.
+  be ``cocotb_bfms.v``.
 
 For pure-Verilog (VPI) targets, a single Verilog file is generated that contains
 all available BFM modules. For SystemVerilog (DPI) targets, a C file is also 

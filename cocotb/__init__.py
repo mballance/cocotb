@@ -41,6 +41,8 @@ import cocotb.handle
 from cocotb.scheduler import Scheduler
 from cocotb.log import SimBaseLog, SimLog
 from cocotb.regression import RegressionManager
+from cocotb.context import Context
+from cocotb.info import Info
 
 
 # Things we want in the cocotb namespace
@@ -54,11 +56,84 @@ from cocotb.decorators import test, coroutine, hook, function, external  # noqa:
 from ._version import __version__
 
 # GPI logging instance
-if "COCOTB_SIM" in os.environ:
-    import simulator
+simulator = None
+
+scheduler = Scheduler()
+"""The global scheduler instance."""
+
+regression_manager = None
+
+plusargs = {}
+
+# To save typing provide an alias to scheduler.add
+fork = scheduler.add
+
+# FIXME is this really required?
+_rlock = threading.RLock()
+
+context = None
+
+
+def get_context():
+    """Get active context"""
+    return context
+
+def set_context(ctxt):
+    """Set active context"""
+    global context
+    context = ctxt
+
+def mem_debug(port):
+    import cocotb.memdebug
+    cocotb.memdebug.start(port)
+    
+def initialize_context(info, sim):
+    """
+    This function is called to create the core data object
+    """
+    ctxt = Context(info, sim)
+    set_context(ctxt)
+
+    # Set global variables to maintain backward compatibility    
+    global scheduler, simulator, argv, log
+    scheduler = ctxt.scheduler
+    simulator = ctxt.simulator
+    argv = info.argv.copy()
+    log = ctxt.log
+    
+    global SIM_NAME, SIM_VERSION
+    SIM_NAME = info.sim_name
+    SIM_VERSION = info.sim_version
+
+    # Scan arguments for plusargs
+    process_plusargs()
+    
+    return ctxt
+
+def _initialise_testbench(root_name):
+    """
+    This function is called after the simulator has elaborated all
+    entities and is ready to run the test.
+
+    The test must be defined by the environment variables
+        MODULE
+        TESTCASE
+
+    The environment variable COCOTB_HOOKS contains a comma-separated list of
+        modules that should be executed before the first test.
+    """
+    _rlock.acquire()
+
     logging.basicConfig()
     logging.setLoggerClass(SimBaseLog)
-    log = SimLog('cocotb')
+    
+    import simulator
+    info = Info()
+    info.sim_name = cocotb.SIM_NAME
+    info.sim_version = cocotb.SIM_VERSION
+    info.argv = cocotb.argv
+    initialize_context(info, simulator)
+    
     level = os.getenv("COCOTB_LOG_LEVEL", "INFO")
     try:
         _default_log = getattr(logging, level)
@@ -83,41 +158,7 @@ if "COCOTB_SIM" in os.environ:
             log.debug("Reopened stderr with line buffering")
     except Exception as e:
         log.warning("Failed to ensure that stdout/stderr are line buffered: %s", e)
-        log.warning("Some stack traces may not appear because of this.")
-
-
-scheduler = Scheduler()
-"""The global scheduler instance."""
-
-regression_manager = None
-
-plusargs = {}
-
-# To save typing provide an alias to scheduler.add
-fork = scheduler.add
-
-# FIXME is this really required?
-_rlock = threading.RLock()
-
-
-def mem_debug(port):
-    import cocotb.memdebug
-    cocotb.memdebug.start(port)
-
-
-def _initialise_testbench(root_name):
-    """
-    This function is called after the simulator has elaborated all
-    entities and is ready to run the test.
-
-    The test must be defined by the environment variables
-        MODULE
-        TESTCASE
-
-    The environment variable COCOTB_HOOKS contains a comma-separated list of
-        modules that should be executed before the first test.
-    """
-    _rlock.acquire()
+        log.warning("Some stack traces may not appear because of this.")    
     
     # Initialize plusargs first so we can reference them
     # for initialization
@@ -237,12 +278,12 @@ def _sim_event(level, message):
 
 
 def process_plusargs():
-
     global plusargs
 
     plusargs = {}
+    info = get_context().info
 
-    for option in cocotb.argv:
+    for option in info.argv:
         if option.startswith('+'):
             if option.find('=') != -1:
                 (name, value) = option[1:].split('=')

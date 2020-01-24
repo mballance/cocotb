@@ -53,7 +53,7 @@ ifneq ($(ARCH),i686)
     EXTRA_ARGS += -64
 endif
 
-EXTRA_ARGS += -xmlibdirpath $(SIM_BUILD) 
+EXTRA_ARGS += -xmlibdirpath $(SIM_BUILD)
 ifeq ($(DEBUG),1)
     EXTRA_ARGS += -pliverbose
     EXTRA_ARGS += -messages
@@ -68,6 +68,11 @@ ifeq ($(GUI),1)
     EXTRA_ARGS += -gui
 else
     EXTRA_ARGS +=
+endif
+
+# Xcelium errors out if multiple timescales are specified on the command line.
+ifneq (,$(findstring timescale,$(EXTRA_ARGS)))
+    $(error "Please use COCOTB_HDL_TIMEUNIT and COCOTB_HDL_TIMEPRECISION to specify timescale.")
 endif
 
 # Xcelium loads VPI regardless of what is asked for, then VHPI if asked to,
@@ -100,11 +105,17 @@ endif
 GPI_LIB = $(COCOTB_VPI_LIB) $(COCOTB_VHPI_LIB)
 
 $(COCOTB_RESULTS_FILE): $(SIM_BUILD) $(HDL_SOURCES) $(CUSTOM_COMPILE_DEPS) $(CUSTOM_SIM_DEPS) $(COCOTB_LIBS) $(GPI_LIB)
+	-@rm -f $(COCOTB_RESULTS_FILE)
+
 	LD_RUN_PATH=$(PYTHON_LIBDIR):$(LD_RUN_PATH) PYTHONPATH=$(LIB_DIR):$(PWD):$(PYTHONPATH) \
 	LD_LIBRARY_PATH=$(LIB_DIR):$(LD_LIBRARY_PATH) MODULE=$(MODULE) TESTCASE=$(TESTCASE) TOPLEVEL=$(TOPLEVEL) COCOTB_SIM=1 \
 	GPI_EXTRA=$(GPI_EXTRA) TOPLEVEL_LANG=$(TOPLEVEL_LANG) \
 	set -o pipefail; \
-	$(CMD) $(EXTRA_ARGS) $(GPI_ARGS) $(INCDIRS) -access +rwc -createdebugdb $(MAKE_LIB) $(HDL_SOURCES) $(PLUSARGS) 2>&1 | tee $(SIM_BUILD)/sim.log
+	$(CMD) -timescale $(COCOTB_HDL_TIMEUNIT)/$(COCOTB_HDL_TIMEPRECISION) \
+	$(EXTRA_ARGS) $(GPI_ARGS) $(INCDIRS) -access +rwc -createdebugdb $(MAKE_LIB) $(HDL_SOURCES) $(PLUSARGS) 2>&1 | tee $(SIM_BUILD)/sim.log
+
+	# check that the file was actually created, since we can't set an exit code from cocotb
+	test -f $(COCOTB_RESULTS_FILE)
 
 clean::
 	@rm -rf $(SIM_BUILD)

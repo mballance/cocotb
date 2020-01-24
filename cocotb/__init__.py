@@ -36,6 +36,7 @@ import logging
 import threading
 import random
 import time
+import warnings
 
 import cocotb.handle
 from cocotb.scheduler import Scheduler
@@ -55,8 +56,45 @@ from cocotb.decorators import test, coroutine, hook, function, external  # noqa:
 
 from ._version import __version__
 
-# GPI logging instance
 simulator = None
+
+# GPI logging instance
+if "COCOTB_SIM" in os.environ:
+    import simulator
+    logging.basicConfig()
+    logging.setLoggerClass(SimBaseLog)
+    log = SimLog('cocotb')
+    level = os.getenv("COCOTB_LOG_LEVEL", "INFO")
+    try:
+        _default_log = getattr(logging, level)
+    except AttributeError as e:
+        log.error("Unable to set loging level to %s" % level)
+        _default_log = logging.INFO
+    log.setLevel(_default_log)
+    loggpi = SimLog('cocotb.gpi')
+    # Notify GPI of log level
+    simulator.log_level(_default_log)
+
+    # If stdout/stderr are not TTYs, Python may not have opened them with line
+    # buffering. In that case, try to reopen them with line buffering
+    # explicitly enabled. This ensures that prints such as stack traces always
+    # appear. Continue silently if this fails.
+    try:
+        if not sys.stdout.isatty():
+            sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
+            log.debug("Reopened stdout with line buffering")
+        if not sys.stderr.isatty():
+            sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 1)
+            log.debug("Reopened stderr with line buffering")
+    except Exception as e:
+        log.warning("Failed to ensure that stdout/stderr are line buffered: %s", e)
+        log.warning("Some stack traces may not appear because of this.")
+
+    # From https://www.python.org/dev/peps/pep-0565/#recommended-filter-settings-for-test-runners
+    # If the user doesn't want to see these, they can always change the global
+    # warning settings in their test module.
+    if not sys.warnoptions:
+        warnings.simplefilter("default")
 
 scheduler = Scheduler()
 """The global scheduler instance."""
@@ -64,6 +102,7 @@ scheduler = Scheduler()
 regression_manager = None
 
 plusargs = {}
+"""A dictionary of "plusargs" handed to the simulation."""
 
 # To save typing provide an alias to scheduler.add
 fork = scheduler.add
@@ -111,16 +150,16 @@ def initialize_context(info, sim):
     return ctxt
 
 def _initialise_testbench(root_name):
-    """
+    """Initialize testbench.
+
     This function is called after the simulator has elaborated all
     entities and is ready to run the test.
 
     The test must be defined by the environment variables
-        MODULE
-        TESTCASE
+    :envvar:`MODULE` and :envvar:`TESTCASE`.
 
-    The environment variable COCOTB_HOOKS contains a comma-separated list of
-        modules that should be executed before the first test.
+    The environment variable :envvar:`COCOTB_HOOKS`, if present, contains a
+    comma-separated list of modules to be executed before the first test.
     """
     _rlock.acquire()
 
@@ -254,7 +293,7 @@ def get_option(env_var, plusarg, default=None, is_list=False):
     
 
 def _sim_event(level, message):
-    """Function that can be called externally to signal an event"""
+    """Function that can be called externally to signal an event."""
     SIM_INFO = 0
     SIM_TEST_FAIL = 1
     SIM_FAIL = 2
